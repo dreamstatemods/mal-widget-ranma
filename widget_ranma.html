@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>MAL Widget — Blog</title>
+
+<style>
+/* ===================== CUSTOM FONTS ===================== */
+@font-face {
+  font-family: 'Giulia';
+  src: url('assets/Giulia Regular.ttf') format('truetype');
+  font-weight: normal;
+}
+
+@font-face {
+  font-family: 'DaxPro';
+  src: url('assets/Dax Pro Cond Regular.ttf') format('truetype');
+  font-weight: normal;
+}
+
+/* ===================== COLOR TOKENS ===================== */
+:root {
+  /* Manga mode (default) — baby blue scheme */
+  --accent:        #8AD6FF;
+  --accent-glow:   rgba(138, 214, 255, 0.45);
+  --accent-soft:   rgba(138, 214, 255, 0.15);
+  --border:        #8AD6FF;
+
+  /* Stat bar colors */
+  --c-watching:    #ff98bc;   /* watching/reading — pink */
+  --c-completed:   #8AD6FF;   /* completed — baby blue */
+  --c-onhold:      #b080ff;   /* on hold — lavender */
+  --c-dropped:     #c5fa7c;   /* dropped — light green */
+  --c-plan:        #f7ed6c;   /* plan to watch/read — yellow */
+}
+
+/* Anime mode overrides — pink scheme */
+.mal-widget.anime-mode {
+  --accent:        #ff98bc;
+  --accent-glow:   rgba(255, 134, 177, 0.45);
+  --accent-soft:   rgba(255, 134, 177, 0.15);
+  --border:        #FFC1E3;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background: #000000;
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  font-family: 'DaxPro', 'Noto Sans JP', sans-serif;
+}
+
+/* ===================== WIDGET SHELL ===================== */
+.mal-widget {
+  color: #fff;
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
+  padding: 14px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 
+    0 0 30px var(--accent-glow),
+    0 0 15px var(--accent-glow),
+    0 0 5px var(--border),
+    inset 0 0 100px rgba(0,0,0,0.8);
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
+  position: relative;
+}
+
+/* ===================== BACKGROUND IMAGES ===================== */
+/* Each mode has its own background image */
+.mal-widget::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: 
+    linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 253, 0.6) 100%),
+    url('assets/mangabg.jpg') center center / cover no-repeat;
+    border-radius: 12px;
+  box-shadow: 
+    inset 0 0 100px rgb(0, 0, 0);   /* vignette */
+  opacity: 0.50;
+  transition: opacity 0.5s ease;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.mal-widget.anime-mode::before {
+  background-image: 
+    linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(196, 7, 133, 0.6) 100%),
+    url('assets/animebg.jpg');
+  box-shadow: 
+    inset 0 0 100px rgb(0, 0, 0);   /* vignette */
+  opacity: 0.6;
+}
+
+/* All direct children sit above the bg layers */
+.mal-widget > * { position: relative; z-index: 1; }
+
+/* ===================== HEADER ===================== */
+.mal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(235, 221, 221, 0.08);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.mal-username {
+  font-family: 'Giulia', cursive;
+  font-size: 22px;
+  font-weight: normal;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+  transition: color 0.4s ease, text-shadow 0.4s ease;
+  margin: 0;
+  line-height: 1;
+  cursor: pointer;
+  text-shadow: 0 0 10px var(--accent-glow);
+}
+
+.mal-username:hover {
+  color: #fff;
+  text-shadow: 0 0 16px rgba(255,255,255,0.5);
+}
+
+/* ===================== TOGGLE ===================== */
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #ffffff;
+  font-family: 'DaxPro', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.mode-switch input { display: none; }
+
+.slider {
+  width: 32px;
+  height: 18px;
+  background: var(--accent);
+  border-radius: 18px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+/* Star-shaped slider thumb using clip-path */
+.slider::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  background: #fff;
+  position: absolute;
+  top: 2.5px;
+  left: 2.5px;
+  /* 5-point star */
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2%  35%,
+    39% 35%
+  );
+  transition: transform 0.3s ease;
+}
+
+input:checked + .slider::before { transform: translateX(14px); }
+
+/* Toggle label colors */
+.label-manga { color: #8AD6FF; transition: color 0.4s ease; }
+.label-anime  { color: #cacaca;   transition: color 0.4s ease; }
+
+.mal-widget.anime-mode .label-manga { color: #cacaca; }
+.mal-widget.anime-mode .label-anime  { color: #ff98bc; }
+
+/* ===================== STATS SUMMARY ===================== */
+.stats-summary {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #fff;
+  font-family: 'DaxPro', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.stats-summary span {
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* ===================== SECTION LABEL ===================== */
+.section-label {
+  font-family: 'Giulia', cursive;
+  font-size: 12px;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 8px;
+  text-shadow: 0 0 8px var(--accent-glow);
+  transition: color 0.4s ease, text-shadow 0.4s ease;
+}
+
+/* ===================== STAT BAR ===================== */
+.stats-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.05);
+  margin-bottom: 14px;
+  gap: 1px;
+}
+
+.bar {
+  height: 100%;
+  width: 0%;
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: 2px;
+}
+
+.bar.watching   { background: var(--c-watching); }
+.bar.completed  { background: var(--c-completed); }
+.bar.onhold     { background: var(--c-onhold); }
+.bar.dropped    { background: var(--c-dropped); }
+.bar.plan       { background: var(--c-plan); }
+
+/* ===================== STATS GRID ===================== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 10px;
+  font-size: 12px;
+  color: #fff;
+  font-family: 'DaxPro', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+.stats-grid > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-grid .stat-val {
+  color: #ff98bc;
+  font-weight: 700;
+}
+
+/* Anime mode: blue stat numbers */
+.mal-widget.anime-mode .stats-grid .stat-val {
+  color: #8AD6FF;
+}
+
+/* Star-shaped legend icons */
+.dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 5px;
+  vertical-align: middle;
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2%  35%,
+    39% 35%
+  );
+}
+
+.dot.watching   { background: var(--c-watching); }
+.dot.completed  { background: var(--c-completed); }
+.dot.onhold     { background: var(--c-onhold); }
+.dot.dropped    { background: var(--c-dropped); }
+.dot.plan       { background: var(--c-plan); }
+
+/* Extra stats row */
+.extra-stats {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+  padding-top: 10px;
+  font-size: 12px;
+  font-family: 'DaxPro', sans-serif;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.extra-stats .stat-val { color: #ff98bc; font-weight: 700; }
+.mal-widget.anime-mode .extra-stats .stat-val { color: #8AD6FF; }
+
+/* ===================== DIVIDER ===================== */
+.divider {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin: 16px 0;
+}
+
+/* ===================== RECENT UPDATES ===================== */
+.section-header {
+  font-family: 'Giulia', cursive;
+  font-size: 12px;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 10px;
+  text-shadow: 0 0 8px var(--accent-glow);
+  transition: color 0.4s ease, text-shadow 0.4s ease;
+}
+
+.update-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.update-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.update-item img {
+  width: 36px;
+  height: 51px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.update-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-title {
+  font-size: 13px;
+  font-family: 'DaxPro', sans-serif;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.update-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.update-title a:hover { color: var(--accent); }
+
+.update-meta {
+  font-size: 11px;
+  color: #ff98bc;
+  font-family: 'DaxPro', sans-serif;
+  margin-bottom: 6px;
+}
+
+/* Anime mode: blue meta text */
+.mal-widget.anime-mode .update-meta {
+  color: #8AD6FF;
+}
+
+.progress-track {
+  height: 4px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  width: 0%;
+  transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Manga = baby blue progress bars */
+    box-shadow: 0 0 6px #8AD6FF, 0 0 12px #8AD6FF;
+  background: #8AD6FF;
+}
+
+.mal-widget.anime-mode .progress-fill {
+  box-shadow: 0 0 6px #FFC1E3, 0 0 12px #FFC1E3;
+}
+
+/* Manga stat bar glow */
+.bar.watching   { box-shadow: 0 0 6px var(--c-watching),  0 0 12px var(--c-watching); }
+.bar.completed  { box-shadow: 0 0 6px var(--c-completed), 0 0 12px var(--c-completed); }
+.bar.onhold     { box-shadow: 0 0 6px var(--c-onhold),    0 0 12px var(--c-onhold); }
+.bar.dropped    { box-shadow: 0 0 6px var(--c-dropped),   0 0 12px var(--c-dropped); }
+.bar.plan       { box-shadow: 0 0 6px var(--c-plan),      0 0 12px var(--c-plan); }
+
+
+/* Anime = pink progress bars */
+.mal-widget.anime-mode .progress-fill { background: #ff98bc; }
+
+.mal-widget.anime-mode .bar.watching   { box-shadow: 0 0 6px var(--c-watching),  0 0 12px var(--c-watching); }
+.mal-widget.anime-mode .bar.completed  { box-shadow: 0 0 6px var(--c-completed), 0 0 12px var(--c-completed); }
+.mal-widget.anime-mode .bar.onhold     { box-shadow: 0 0 6px var(--c-onhold),    0 0 12px var(--c-onhold); }
+.mal-widget.anime-mode .bar.dropped    { box-shadow: 0 0 6px var(--c-dropped),   0 0 12px var(--c-dropped); }
+.mal-widget.anime-mode .bar.plan       { box-shadow: 0 0 6px var(--c-plan),      0 0 12px var(--c-plan); }
+
+
+/* ===================== FAVORITES CAROUSEL ===================== */
+.mal-carousel {
+  margin-top: 25px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.carousel-window {
+  width: 100%;
+  height: 190px;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-track {
+  display: flex;
+  align-items: center;
+}
+
+.carousel-item {
+  margin: 0 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.image-wrapper {
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  /* 0-blur drop-shadow = hard border edge; subsequent layers = glow */
+  filter: drop-shadow(0 0 3px var(--border))
+          drop-shadow(0 0 4px var(--border))
+          drop-shadow(0 0 12px var(--accent-glow))
+          drop-shadow(0 0 22px var(--accent-glow));
+  transition: filter 0.4s ease;
+}
+
+.carousel-item.center .image-wrapper {
+  filter: drop-shadow(0 0 3px var(--border))
+          drop-shadow(0 0 6px var(--border))
+          drop-shadow(0 0 16px var(--accent-glow))
+          drop-shadow(0 0 28px var(--accent-glow));
+}
+
+.carousel-item:hover .image-wrapper {
+  filter: drop-shadow(0 0 3px var(--border))
+          drop-shadow(0 0 6px var(--border))
+          drop-shadow(0 0 18px var(--accent-glow))
+          drop-shadow(0 0 34px var(--accent-glow));
+}
+
+.carousel-item.center:hover .image-wrapper {
+  filter: drop-shadow(0 0 3px var(--border))
+          drop-shadow(0 0 8px var(--border))
+          drop-shadow(0 0 22px var(--accent-glow))
+          drop-shadow(0 0 38px var(--accent-glow));
+}
+
+.carousel-item img {
+  width: 70px;
+  transition: transform 0.4s ease, opacity 0.4s ease,
+              -webkit-mask-size 0.4s ease, mask-size 0.4s ease;
+  opacity: 0.75;
+  border: none;
+  border-radius: 0;
+  transform: scale(0.9) rotate(9deg);
+  cursor: pointer;
+
+  /* Side items: star-shaped */
+  -webkit-mask-image: url(assets/starmask.png);
+  -webkit-mask-size: 100%;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-image: url(assets/starmask.png);
+          mask-size: 100%;
+          mask-repeat: no-repeat;
+          mask-position: center;
+}
+
+/* Hovering a side item — JS handles mask expansion */
+.carousel-item img:hover {
+  transform: scale(0.9) rotate(-9deg);
+  opacity: 1;
+  border-radius: 4px;
+}
+
+/* Center item: larger, JS handles mask */
+.carousel-item.center img {
+  transform: scale(1.2) rotate(-9deg);
+  opacity: 1;
+}
+
+/* Hovering center: straighten and expand */
+.carousel-item.center img:hover {
+  transform: scale(1.55) rotate(0deg);
+  border-radius: 4px;
+}
+
+.item-title {
+  font-size: 12px;
+  color: #fff;
+  opacity: 0;
+  margin-top: 14px;
+  width: 90px;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  padding-bottom: 3px;
+  position: relative;
+  z-index: 3;
+  font-family: 'DaxPro', sans-serif;
+}
+
+.carousel-item.center .item-title {
+  opacity: 1;
+  color: var(--accent);
+  font-weight: bold;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+
+.carousel-item.center .item-title:hover { color: #fff; }
+
+/* ===================== FADE TRANSITION ===================== */
+.content-fade {
+  transition: opacity 0.2s ease;
+}
+
+.content-fade.fading { opacity: 0; }
+</style>
+</head>
+
+<body>
+<div class="mal-widget" id="widget">
+
+  <!-- HEADER -->
+  <div class="mal-header">
+    <h2 class="mal-username" id="mal-username">—</h2>
+    <label class="mode-switch">
+      <span class="label-manga">Manga</span>
+      <input type="checkbox" id="modeToggle">
+      <span class="slider"></span>
+      <span class="label-anime">Anime</span>
+    </label>
+  </div>
+
+  <!-- STATS SECTION -->
+  <div class="content-fade" id="stats-section">
+
+    <div class="stats-summary">
+      <div>Total Days &nbsp;<span id="days">—</span></div>
+      <div>Mean Score &nbsp;<span id="mean">—</span></div>
+    </div>
+
+    <div class="section-label" id="stats-label">Manga Stats</div>
+
+    <div class="stats-bar">
+      <div class="bar watching"  id="bar-watching"></div>
+      <div class="bar completed" id="bar-completed"></div>
+      <div class="bar onhold"    id="bar-onhold"></div>
+      <div class="bar dropped"   id="bar-dropped"></div>
+      <div class="bar plan"      id="bar-plan"></div>
+    </div>
+
+    <div class="stats-grid">
+      <div><span class="dot watching"></span><span id="label-watching">Reading</span> <span class="stat-val" id="stat-watching">—</span></div>
+      <div>Total Entries <span class="stat-val" id="stat-total">—</span></div>
+      <div><span class="dot completed"></span>Completed <span class="stat-val" id="stat-completed">—</span></div>
+      <div id="rewatch-row">Reread <span class="stat-val" id="stat-rewatch">—</span></div>
+      <div><span class="dot onhold"></span>On-Hold <span class="stat-val" id="stat-onhold">—</span></div>
+      <div id="extra-episodes">Episodes <span class="stat-val" id="stat-episodes">—</span></div>
+      <div id="extra-chapters" style="display:none">Chapters <span class="stat-val" id="stat-chapters">—</span></div>
+      <div><span class="dot dropped"></span>Dropped <span class="stat-val" id="stat-dropped">—</span></div>
+      <div id="extra-volumes" style="display:none">Volumes <span class="stat-val" id="stat-volumes">—</span></div>
+      <div id="extra-volumes-placeholder"></div>
+      <div><span class="dot plan"></span><span id="label-plan">Plan to Read</span> <span class="stat-val" id="stat-plan">—</span></div>
+    </div>
+
+    <div class="extra-stats">
+      <div></div>
+    </div>
+
+  </div>
+
+  <hr class="divider">
+
+  <!-- RECENT UPDATES -->
+  <div class="content-fade" id="updates-section">
+    <div class="section-header" id="updates-label">Recent Manga Updates</div>
+    <div class="update-list" id="update-list"></div>
+  </div>
+
+  <!-- FAVORITES CAROUSEL -->
+  <div class="mal-carousel content-fade" id="carousel-section">
+    <div class="section-header" id="carousel-label">Manga Favorites</div>
+    <div class="carousel-window" id="carousel-window">
+      <div class="carousel-track" id="carousel-track"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(async () => {
+
+  const API = "https://mal-widget-proxy.dreamstatemods.workers.dev/dream-state";
+
+  const res  = await fetch(API);
+  const data = await res.json();
+
+  const widget       = document.getElementById("widget");
+  const toggle       = document.getElementById("modeToggle");
+  const fadeSections = document.querySelectorAll(".content-fade");
+
+  // USERNAME
+  const usernameEl = document.getElementById("mal-username");
+  usernameEl.textContent = data.username;
+  usernameEl.onclick = () => window.open(data.profile.url, "_blank");
+
+  // ---- Stat bar animation ----
+  function animateBars(stats, isAnime) {
+    const total   = stats.total_entries || 1;
+    const active  = isAnime ? stats.watching || 0 : stats.reading || 0;
+    const planVal = isAnime ? stats.plan_to_watch || 0 : stats.plan_to_read || 0;
+
+    function setBar(id, value) {
+      const el = document.getElementById(id);
+      el.style.width = "0%";
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.width = ((value / total) * 100) + "%";
+      }));
+    }
+
+    setBar("bar-watching",  active);
+    setBar("bar-completed", stats.completed || 0);
+    setBar("bar-onhold",    stats.on_hold   || 0);
+    setBar("bar-dropped",   stats.dropped   || 0);
+    setBar("bar-plan",      planVal);
+  }
+
+  // ---- Render updates ----
+  function renderUpdates(entries, isAnime) {
+    const list = document.getElementById("update-list");
+    list.innerHTML = "";
+
+    entries.slice(0, 5).forEach(update => {
+
+      const image = update.image || "";
+      const title = update.title || "";
+      const url   = update.url   || "";
+
+      let progress = update.progress || 0;
+      let total    = isAnime ? (update.total_episodes || 0) : (update.total_chapters || 0);
+      let label    = isAnime
+        ? `Ep ${progress} / ${total || "?"}`
+        : `Ch ${progress} / ${total || "?"}`;
+
+      const pct = update.percentComplete ?? (total ? Math.round((progress / total) * 100) : 0);
+
+      const el = document.createElement("div");
+      el.className = "update-item";
+      el.innerHTML = `
+        <img src="${image}" alt="${title}" loading="lazy">
+        <div class="update-info">
+          <div class="update-title">
+            <a href="${url}" target="_blank">${title}</a>
+          </div>
+          <div class="update-meta">${label} · ${pct}%</div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width:0%"></div>
+          </div>
+        </div>
+      `;
+      list.appendChild(el);
+      const fill = el.querySelector(".progress-fill");
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        fill.style.width = pct + "%";
+      }));
+    });
+  }
+
+  // ===================== CAROUSEL =====================
+  let carouselFavs = [];
+  let currentIndex = 0;
+  let autoSlide    = null;
+
+  function renderCarousel() {
+    const track = document.getElementById("carousel-track");
+    track.innerHTML = "";
+
+    if (!carouselFavs.length) return;
+
+    const n = carouselFavs.length;
+
+    const visible = [
+      carouselFavs[(currentIndex - 1 + n) % n],
+      carouselFavs[currentIndex],
+      carouselFavs[(currentIndex + 1) % n]
+    ];
+
+    visible.forEach((fav, i) => {
+      const isCenter = i === 1;
+      const itemDiv = document.createElement("div");
+      itemDiv.className = "carousel-item" + (isCenter ? " center" : "");
+
+      const img = document.createElement("img");
+      img.src = fav.images?.jpg?.image_url || "";
+      img.alt = fav.title;
+      img.onclick = () => window.open(fav.url, "_blank");
+
+      // Force star mask via inline style — all items start as stars
+      const maskVal = "url(assets/starmask.png)";
+      img.style.cssText = `
+        -webkit-mask-image: ${maskVal};
+        -webkit-mask-size: 100%;
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-image: ${maskVal};
+        mask-size: 100%;
+        mask-repeat: no-repeat;
+        mask-position: center;
+      `;
+
+      // On hover: expand to full image
+      img.addEventListener("mouseenter", () => {
+        img.style.webkitMaskSize = "350%";
+        img.style.maskSize = "300%";
+      });
+      img.addEventListener("mouseleave", () => {
+        img.style.webkitMaskSize = "100%";
+        img.style.maskSize = "100%";
+      });
+
+      const title = document.createElement("div");
+      title.className = "item-title";
+      title.textContent = fav.title;
+      title.onclick = () => window.open(fav.url, "_blank");
+
+      const wrap = document.createElement("div");
+      wrap.className = "image-wrapper";
+      wrap.appendChild(img);
+
+      itemDiv.appendChild(wrap);
+      itemDiv.appendChild(title);
+      track.appendChild(itemDiv);
+    });
+  }
+
+  function nextSlide() {
+    currentIndex = (currentIndex + 1) % carouselFavs.length;
+    renderCarousel();
+  }
+
+  function buildCarousel(favorites) {
+    clearInterval(autoSlide);
+    carouselFavs = favorites;
+    currentIndex = 0;
+
+    if (!favorites.length) {
+      document.getElementById("carousel-track").innerHTML = "";
+      return;
+    }
+
+    renderCarousel();
+    autoSlide = setInterval(nextSlide, 4000);
+  }
+
+  document.getElementById("carousel-window")
+    .addEventListener("mouseenter", () => clearInterval(autoSlide));
+
+  document.getElementById("carousel-window")
+    .addEventListener("mouseleave", () => {
+      if (carouselFavs.length)
+        autoSlide = setInterval(nextSlide, 4000);
+    });
+
+  // ===================== MAIN RENDER =====================
+  function render(mode) {
+
+    const isAnime = mode === "anime";
+    const stats   = isAnime ? data.statistics.anime : data.statistics.manga;
+
+    fadeSections.forEach(el => el.classList.add("fading"));
+
+    setTimeout(() => {
+
+      widget.classList.toggle("anime-mode", isAnime);
+
+      document.getElementById("stats-label").textContent =
+        isAnime ? "Anime Stats" : "Manga Stats";
+
+      document.getElementById("mean").textContent =
+        stats.mean_score ?? "—";
+
+      document.getElementById("days").textContent =
+        isAnime ? stats.days_watched ?? "—"
+                : stats.days_read ?? "—";
+
+      document.getElementById("label-watching").textContent = isAnime ? "Watching" : "Reading";
+      document.getElementById("label-plan").textContent = isAnime ? "Plan to Watch" : "Plan to Read";
+
+      document.getElementById("stat-watching").textContent =
+        isAnime ? stats.watching ?? "—" : stats.reading ?? "—";
+
+      document.getElementById("stat-completed").textContent = stats.completed ?? "—";
+      document.getElementById("stat-onhold").textContent    = stats.on_hold ?? "—";
+      document.getElementById("stat-dropped").textContent   = stats.dropped ?? "—";
+      document.getElementById("stat-plan").textContent =
+        isAnime ? stats.plan_to_watch ?? "—" : stats.plan_to_read ?? "—";
+
+      document.getElementById("stat-total").textContent   = stats.total_entries ?? "—";
+      document.getElementById("stat-rewatch").textContent =
+        isAnime ? stats.rewatched ?? "—" : stats.reread ?? "—";
+
+      document.getElementById("rewatch-row").childNodes[0].textContent =
+        isAnime ? "Rewatched " : "Reread ";
+
+      document.getElementById("extra-episodes").style.display         = isAnime ? "" : "none";
+      document.getElementById("extra-chapters").style.display         = isAnime ? "none" : "";
+      document.getElementById("extra-volumes").style.display          = isAnime ? "none" : "";
+      document.getElementById("extra-volumes-placeholder").style.display = isAnime ? "" : "none";
+
+      document.getElementById("stat-episodes").textContent = stats.episodes_watched ?? "—";
+      document.getElementById("stat-chapters").textContent = stats.chapters_read ?? "—";
+      document.getElementById("stat-volumes").textContent  = stats.volumes_read ?? "—";
+
+      animateBars(stats, isAnime);
+
+      const updates = isAnime
+        ? data.recentUpdates.anime
+        : data.recentUpdates.manga;
+
+      document.getElementById("updates-label").textContent =
+        isAnime ? "Recent Anime Updates" : "Recent Manga Updates";
+
+      renderUpdates(updates || [], isAnime);
+
+const favorites = isAnime ? data.favorites.anime : data.favorites.manga;
+
+      buildCarousel(favorites || []);
+
+      document.getElementById("carousel-label").textContent =
+        isAnime ? "Anime Favorites" : "Manga Favorites";
+
+      fadeSections.forEach(el => el.classList.remove("fading"));
+
+    }, 220);
+
+    localStorage.setItem("malWidgetMode", mode);
+  }
+
+  // ---- Init ----
+  const savedMode = localStorage.getItem("malWidgetMode") || "manga";
+  toggle.checked  = savedMode === "anime";
+  render(savedMode);
+
+  toggle.addEventListener("change", () => {
+    render(toggle.checked ? "anime" : "manga");
+  });
+
+})();
+</script>
+
+</body>
+</html>
